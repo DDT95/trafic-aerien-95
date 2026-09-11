@@ -1,0 +1,48 @@
+name: Construire la journée aérienne
+
+on:
+  schedule:
+    - cron: "35 6 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Journée UTC à traiter (YYYY-MM-DD), vide = hier"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-air-traffic
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Extraire les trajectoires du Val-d'Oise
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUESTED_DATE: ${{ inputs.date }}
+        run: |
+          if [ -n "$REQUESTED_DATE" ]; then
+            python scripts/build_day.py --date "$REQUESTED_DATE"
+          else
+            python scripts/build_day.py
+          fi
+      - name: Publier la journée compacte
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/index.json data/days
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "data: ajoute la journée aérienne"
+          git push
