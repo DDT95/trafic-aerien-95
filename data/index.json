@@ -1,1 +1,45 @@
-{"updated_at":null,"latest":null,"days":[],"status":"waiting_for_first_build"}
+{
+  "updated_at": "2026-09-11T13:35:48.678402+00:00",
+  "latest": "2026-09-10",
+  "days": [
+    {
+      "date": "2026-09-10",
+      "label": "10/09/2026",
+      "file": "data/days/2026-09-10.json.gz",
+      "stats": {
+        "passages": 1547,
+        "aircraft": 1244,
+        "low": 926,
+        "positions": 34751,
+        "peak_hour": 8,
+        "hourly": [
+          8,
+          6,
+          32,
+          14,
+          24,
+          73,
+          69,
+          92,
+          122,
+          117,
+          94,
+          104,
+          117,
+          94,
+          102,
+          79,
+          73,
+          75,
+          71,
+          84,
+          44,
+          35,
+          12,
+          6
+        ]
+      }
+    }
+  ],
+  "status": "ready"
+}
