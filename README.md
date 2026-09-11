@@ -1,6 +1,6 @@
 # Trafic aérien quotidien — Val-d’Oise
 
-Carte interactive DDT 95 des trajectoires ADS-B observées pendant une journée complète au-dessus du Val-d’Oise.
+Carte interactive DDT 95 des trajectoires ADS-B observées pendant une journée complète au-dessus du Val-d’Oise. Première journée publiée : 10 septembre 2026.
 
 ## Fonctionnement
 
