@@ -66,8 +66,9 @@ def api_json(url: str):
 
 def release_assets(day: str) -> list[str]:
     wanted = f"v{day}-planes-readsb-prod-0"
+    releases_repo = f"globe_history_{day[:4]}"
     for page in range(1, 5):
-        releases = api_json(f"https://api.github.com/repos/adsblol/globe_history/releases?per_page=100&page={page}")
+        releases = api_json(f"https://api.github.com/repos/adsblol/{releases_repo}/releases?per_page=100&page={page}")
         for release in releases:
             if release.get("tag_name") == wanted:
                 assets = [a for a in release.get("assets", []) if ".tar.a" in a["name"]]
