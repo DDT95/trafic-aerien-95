@@ -1,6 +1,12 @@
 name: Construire la journée aérienne
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_day.py"
+      - "data/communes95.geojson"
+      - ".github/workflows/build-daily.yml"
   schedule:
     - cron: "35 6 * * *"
   workflow_dispatch:
