@@ -8,7 +8,7 @@ Carte interactive DDT 95 des décollages et atterrissages ADS-B observés pendan
 - Seules les trajectoires qui croisent une commune du Val-d’Oise et sont associées à un décollage ou un atterrissage sur un aérodrome du département sont conservées.
 - La carte s’ouvre sur un créneau de 30 minutes pour rester lisible ; le cumul journalier reste disponible.
 - L’animation avance minute par minute, avec trois vitesses, quatre amplitudes de lecture et des raccourcis horaires.
-- Un mode temps réel distinct affiche les appareils à basse ou moyenne altitude autour des aérodromes, avec une qualification indicative montée/descente actualisée toutes les 30 secondes.
+- Un mode « Situation récente » affiche les appareils à basse ou moyenne altitude autour des aérodromes, avec une qualification indicative montée/descente et un instantané renouvelé environ toutes les cinq minutes.
 - Les avions sont orientés selon le cap ADS-B, avec les décollages en bleu et les atterrissages en rouge.
 - Au clic, l’itinéraire indicatif associé à l’indicatif de vol est recherché dans ADSBDB : provenance, destination et compagnie.
 - Le PEB de Paris–Charles-de-Gaulle peut être superposé par zone A, B, C ou D pour comparer les trajectoires au zonage réglementaire approuvé le 3 avril 2007.
