@@ -19,6 +19,14 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data"
 WIDE = (1.25, 48.65, 2.80, 49.45)  # context kept around the department
 MAX_DAYS = 14
+AIRPORTS = [
+    {"id": "CDG", "name": "Paris-Charles-de-Gaulle", "radius": 4.8,
+     "anchors": [(49.020, 2.515), (49.001, 2.565), (49.018, 2.625), (49.002, 2.665)]},
+    {"id": "POX", "name": "Pontoise-Cormeilles", "radius": 5, "anchors": [(49.0966, 2.0408)]},
+    {"id": "LFPA", "name": "Persan-Beaumont", "radius": 5, "anchors": [(49.1658, 2.3117)]},
+    {"id": "LFFE", "name": "Enghien-Moisselles", "radius": 4, "anchors": [(49.0464, 2.3531)]},
+    {"id": "LFFC", "name": "Cherence", "radius": 4, "anchors": [(49.0789, 1.6894)]},
+]
 
 
 class ConcatenatedHTTP(io.RawIOBase):
@@ -125,6 +133,31 @@ def number(value):
     return float(value) if isinstance(value, (int, float)) and math.isfinite(value) else None
 
 
+def airport_distance(point, airport) -> float:
+    return min(haversine_km(point, [0, lat, lon]) for lat, lon in airport["anchors"])
+
+
+def classify_movement(points):
+    """Infer an airport movement from a low endpoint and a clear climb/descent."""
+    altitudes = [p[3] for p in points if p[3] is not None]
+    if len(points) < 2 or not altitudes:
+        return None
+    first = min(AIRPORTS, key=lambda a: airport_distance(points[0], a))
+    last = min(AIRPORTS, key=lambda a: airport_distance(points[-1], a))
+    first_alt = [p[3] for p in points[:4] if p[3] is not None]
+    last_alt = [p[3] for p in points[-4:] if p[3] is not None]
+    high = max(altitudes)
+    departure = (first_alt and airport_distance(points[0], first) <= first["radius"]
+                 and min(first_alt) <= 3000 and high - min(first_alt) >= 1000)
+    arrival = (last_alt and airport_distance(points[-1], last) <= last["radius"]
+               and min(last_alt) <= 3000 and high - min(last_alt) >= 1000)
+    if arrival:
+        return "arrival", last["id"]
+    if departure:
+        return "departure", first["id"]
+    return None
+
+
 def parse_aircraft(raw: bytes, polygons, day_start: float):
     try:
         payload = json.loads(gzip.decompress(raw))
@@ -181,6 +214,9 @@ def parse_aircraft(raw: bytes, polygons, day_start: float):
         speeds = [p[4] for p in inside if p[4] is not None]
         if not altitudes:
             continue
+        movement = classify_movement(kept)
+        if not movement:
+            continue
         tracks.append({
             "hex": str(payload.get("icao", "unknown")).lstrip("~"),
             "flight": flight,
@@ -191,6 +227,7 @@ def parse_aircraft(raw: bytes, polygons, day_start: float):
             "first": inside[0][0], "last": inside[-1][0],
             "min_alt": round(min(altitudes)), "max_alt": round(max(altitudes)),
             "max_speed": round(max(speeds), 1) if speeds else None,
+            "movement": movement[0], "airport": movement[1],
             "points": kept,
         })
     return tracks
@@ -216,9 +253,13 @@ def build(day: str, urls: list[str]):
         track["id"] = f"{track['hex']}-{i + 1}"
     tracks.sort(key=lambda t: t["first"])
     hourly = Counter(min(23, max(0, t["first"] // 3600)) for t in tracks)
+    movements = Counter(t["movement"] for t in tracks)
     positions = sum(len(t["points"]) for t in tracks)
     stats = {
         "passages": len(tracks),
+        "movements": len(tracks),
+        "departures": movements["departure"],
+        "arrivals": movements["arrival"],
         "aircraft": len({t["hex"] for t in tracks}),
         "low": sum(1 for t in tracks if t["min_alt"] < 5000),
         "positions": positions,

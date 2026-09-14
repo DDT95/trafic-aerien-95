@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="preconnect" href="https://tile.openstreetmap.org" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-  <link rel="stylesheet" href="css/style.css?v=1" />
+  <link rel="stylesheet" href="css/style.css?v=2" />
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
 </head>
 <body>
@@ -20,7 +20,7 @@
       <div class="titles">
         <span class="eyebrow">MOBILITÉS · TRAFIC AÉRIEN</span>
         <h1>Une journée dans le ciel du Val-d’Oise</h1>
-        <p>Trajectoires ADS-B observées au-dessus du département</p>
+        <p>Décollages et atterrissages observés depuis les aérodromes du département</p>
       </div>
       <div class="data-state" id="dataState">
         <i></i><div><strong>Chargement des données</strong><small>Source ADSB.lol</small></div>
@@ -29,11 +29,11 @@
     </header>
 
     <section class="kpis" aria-label="Indicateurs de la journée">
-      <article><b id="kpiPassages">—</b><span>passages observés</span></article>
-      <article><b id="kpiAircraft">—</b><span>aéronefs distincts</span></article>
-      <article><b id="kpiLow">—</b><span>passages sous 5 000 ft</span></article>
+      <article><b id="kpiPassages">—</b><span>mouvements retenus</span></article>
+      <article><b id="kpiAircraft">—</b><span>décollages observés</span></article>
+      <article><b id="kpiLow">—</b><span>atterrissages observés</span></article>
       <article><b id="kpiPeak">—</b><span>heure la plus chargée</span></article>
-      <article><b id="kpiPoints">—</b><span>positions retenues</span></article>
+      <article><b id="kpiPoints">—</b><span>aéronefs distincts</span></article>
     </section>
 
     <main class="workspace">
@@ -52,7 +52,7 @@
             <input id="time" type="range" min="0" max="1440" step="5" value="1440" aria-label="Heure de la journée" />
           </div>
           <div class="ticks"><span>00 h</span><span>06 h</span><span>12 h</span><span>18 h</span><span>24 h</span></div>
-          <label class="check"><input id="cumulative" type="checkbox" checked /><span>Afficher le cumul jusqu’à l’heure choisie</span></label>
+          <label class="check"><input id="cumulative" type="checkbox" /><span>Afficher le cumul depuis minuit</span></label>
         </section>
 
         <section class="control-block">
@@ -60,18 +60,16 @@
           <div class="modes" role="group" aria-label="Mode de représentation">
             <button class="mode active" data-mode="tracks" type="button"><i class="track-icon"></i><span><b>Trajectoires</b><small>Un passage, une ligne</small></span></button>
             <button class="mode" data-mode="density" type="button"><i class="density-icon"></i><span><b>Densité</b><small>Concentration des positions</small></span></button>
-            <button class="mode" data-mode="low" type="button"><i class="low-icon"></i><span><b>Basse altitude</b><small>Passages sous 5 000 ft</small></span></button>
           </div>
         </section>
 
         <section class="control-block">
-          <div class="block-title"><span>ALTITUDE MINIMALE DU PASSAGE</span><button id="allAlt" type="button">Tout</button></div>
-          <div class="altitudes">
-            <label><input type="checkbox" value="lt3000" checked /><i class="a1"></i><span>Moins de 3 000 ft</span></label>
-            <label><input type="checkbox" value="3000-10000" checked /><i class="a2"></i><span>3 000 à 10 000 ft</span></label>
-            <label><input type="checkbox" value="10000-20000" checked /><i class="a3"></i><span>10 000 à 20 000 ft</span></label>
-            <label><input type="checkbox" value="gte20000" checked /><i class="a4"></i><span>20 000 ft et plus</span></label>
+          <div class="block-title"><span>MOUVEMENTS AFFICHÉS</span></div>
+          <div class="movement-filters">
+            <label><input type="checkbox" value="departure" checked /><i class="departure-dot"></i><span>Décollages</span></label>
+            <label><input type="checkbox" value="arrival" checked /><i class="arrival-dot"></i><span>Atterrissages</span></label>
           </div>
+          <label class="airport-filter"><span>Aérodrome</span><select id="airportSelect"><option value="all">Tous les aérodromes</option></select></label>
         </section>
 
         <button class="method-link" id="openMethod" type="button">Sources, méthode et limites</button>
@@ -88,7 +86,7 @@
 
   <aside class="flight-panel" id="flightPanel" aria-hidden="true">
     <button class="panel-close" id="closeFlight" type="button" aria-label="Fermer">×</button>
-    <span class="eyebrow">PASSAGE SÉLECTIONNÉ</span>
+    <span class="eyebrow">MOUVEMENT SÉLECTIONNÉ</span>
     <h2 id="flightTitle">Aéronef</h2>
     <p id="flightSubtitle"></p>
     <div id="flightFacts" class="flight-facts"></div>
@@ -98,15 +96,15 @@
     <button class="dialog-close" id="closeMethod" type="button" aria-label="Fermer">×</button>
     <span class="eyebrow">COMPRENDRE LA DONNÉE</span>
     <h2>Ce que montre cette carte</h2>
-    <p>Les trajectoires proviennent des positions ADS-B historiques publiées quotidiennement par ADSB.lol sous licence ODbL. Un passage est une séquence continue de positions d’un même aéronef qui traverse le Val-d’Oise.</p>
-    <h3>Altitude et densité</h3>
-    <p>L’altitude affichée est l’altitude barométrique transmise par l’aéronef. La densité représente le nombre de positions observées dans une maille, pas un niveau sonore.</p>
+    <p>Les trajectoires proviennent des positions ADS-B historiques publiées quotidiennement par ADSB.lol sous licence ODbL. La carte ne conserve que les séquences qui traversent le Val-d’Oise et dont l’extrémité basse correspond à un décollage ou à un atterrissage sur un aérodrome du département.</p>
+    <h3>Lecture et sens de vol</h3>
+    <p>Bleu : décollage. Rouge : atterrissage. En lecture horaire, le nez de chaque avion est orienté selon le cap ADS-B transmis. La densité représente le nombre de positions observées dans une maille, pas un niveau sonore.</p>
     <h3>Limites</h3>
-    <p>La réception ADS-B n’est pas exhaustive. Certains appareils, positions ou attributs peuvent être absents. Cette carte décrit des survols observés ; elle ne mesure ni le bruit, ni une exposition acoustique réglementaire.</p>
+    <p>Le type de mouvement est déduit de la proximité de l’aérodrome, de l’altitude et du profil de la trajectoire : ce n’est pas un registre officiel des mouvements. La réception ADS-B n’est pas exhaustive. Cette carte ne mesure ni le bruit, ni une exposition acoustique réglementaire.</p>
     <p class="source-note">Source : ADSB.lol · Limites administratives : DDT 95 · Fond : OpenStreetMap</p>
   </dialog>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="js/app.js?v=1"></script>
+  <script src="js/app.js?v=2"></script>
 </body>
 </html>
