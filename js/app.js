@@ -22,6 +22,7 @@
   map.getPane('pebPane').style.zIndex = 350;
   map.getPane('pebPane').style.pointerEvents = 'none';
   const pebColors = { A: '#c9191e', B: '#e8590c', C: '#d6a700', D: '#6666c7' };
+  const LIVE_URL = 'https://raw.githubusercontent.com/DDT95/trafic-aerien-95/live/data/live.json';
   const pebLayer = L.geoJSON(null, { pane: 'pebPane', interactive: false, style: f => ({ color: pebColors[f.properties.ZONE], fillColor: pebColors[f.properties.ZONE], weight: 1.8, opacity: .9, fillOpacity: f.properties.ZONE === 'D' ? .10 : .18 }) });
   const airportLayer = L.layerGroup().addTo(map);
   const haloLayer = L.layerGroup().addTo(map);
@@ -390,7 +391,7 @@
   function openLiveFlight(item) {
     const p = item.data; const requestId = ++routeRequest;
     $('flightTitle').textContent = (p.flight || p.r || p.hex || 'Aéronef').trim();
-    $('flightSubtitle').textContent = `${movementText(item.movement)} · position en direct`;
+    $('flightSubtitle').textContent = `${movementText(item.movement)} · dernière position reçue`;
     const facts = [
       ['Tendance', movementText(item.movement)], ['Aérodrome proche', item.airport.name],
       ['Immatriculation', p.r || 'Non transmise'], ['Type', p.t || 'Non transmis'],
@@ -403,9 +404,9 @@
 
   async function loadLive() {
     if (viewKind !== 'live') return;
-    $('mapStatus').textContent = 'Actualisation du trafic en direct…';
+    $('mapStatus').textContent = 'Chargement de la situation aérienne récente…';
     try {
-      const response = await fetch('https://api.adsb.lol/v2/lat/49.08/lon/2.10/dist/45');
+      const response = await fetch(`${LIVE_URL}?v=${Math.floor(Date.now() / 300000)}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const payload = await response.json(); const now = Date.now();
       if (viewKind !== 'live') return;
@@ -422,18 +423,20 @@
         movingLive.push({ data: p, marker, seenAt: performance.now() });
       });
       const arrivals = items.filter(x => x.movement === 'arrival').length; const departures = items.filter(x => x.movement === 'departure').length;
-      const stamp = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      $('kpiPassages').textContent = fmt.format(items.length); $('kpiPassagesLabel').textContent = 'mouvements probables en direct';
+      const observedAt = payload.fetched_at ? new Date(payload.fetched_at) : new Date();
+      const stamp = observedAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const ageMinutes = Math.max(0, Math.round((Date.now() - observedAt.getTime()) / 60000));
+      $('kpiPassages').textContent = fmt.format(items.length); $('kpiPassagesLabel').textContent = 'mouvements probables récents';
       $('kpiAircraft').textContent = fmt.format(departures); $('kpiAircraftLabel').textContent = 'appareils en montée';
       $('kpiLow').textContent = fmt.format(arrivals); $('kpiLowLabel').textContent = 'appareils en descente';
       $('kpiPeak').textContent = stamp.slice(0, 5); $('kpiPeakLabel').textContent = 'dernière actualisation';
       $('kpiPoints').textContent = fmt.format(items.filter(x => x.movement === 'unknown').length); $('kpiPointsLabel').textContent = 'mouvements à confirmer';
-      $('liveSummary').textContent = `${items.length} appareils à basse ou moyenne altitude près des aérodromes · actualisation toutes les 30 secondes.`;
-      $('mapStatus').textContent = `${items.length} mouvements probables · direct ${stamp}`;
-      setState('Temps réel actif', `Actualisé à ${stamp}`, 'ready'); updateLegend();
+      $('liveSummary').textContent = `${items.length} appareils à basse ou moyenne altitude près des aérodromes · instantané reçu à ${stamp}${ageMinutes ? ` · il y a ${ageMinutes} min` : ''}.`;
+      $('mapStatus').textContent = `${items.length} mouvements probables · situation de ${stamp}`;
+      setState('Situation récente', `Instantané de ${stamp}`, ageMinutes > 15 ? 'error' : 'ready'); updateLegend();
     } catch (error) {
-      $('liveSummary').textContent = 'Le flux direct est momentanément indisponible. Le bilan journalier reste accessible.';
-      $('mapStatus').textContent = 'Flux direct indisponible'; setState('Temps réel indisponible', 'Nouvel essai automatique', 'error');
+      $('liveSummary').textContent = 'L’instantané récent est momentanément indisponible. Le bilan journalier reste accessible.';
+      $('mapStatus').textContent = 'Situation récente indisponible'; setState('Instantané indisponible', 'Nouvel essai automatique', 'error');
     }
   }
 
@@ -445,7 +448,7 @@
     const dailyLayers = [haloLayer, trackLayer, markerLayer, densityLayer]; const liveLayers = [liveTrailLayer, liveMarkerLayer];
     if (next === 'live') {
       stop(); dailyLayers.forEach(layer => map.removeLayer(layer)); liveLayers.forEach(layer => layer.addTo(map));
-      loadLive(); clearInterval(liveTimer); liveTimer = setInterval(loadLive, 30000);
+      loadLive(); clearInterval(liveTimer); liveTimer = setInterval(loadLive, 60000);
     } else {
       clearInterval(liveTimer); liveLayers.forEach(layer => map.removeLayer(layer)); dailyLayers.forEach(layer => layer.addTo(map));
       if (day) {
