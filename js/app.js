@@ -114,6 +114,9 @@
   async function loadIndex() {
     try {
       index = await readJson('data/index.json');
+      // Older files were built with the former department-crossing rule and
+      // undercount arrivals. Keep them hidden rather than publish biased days.
+      index.days = (index.days || []).filter(item => Number.isFinite(item.stats?.arrivals) && Number.isFinite(item.stats?.departures));
       const select = $('daySelect'); select.innerHTML = '';
       if (!index.days?.length) {
         select.innerHTML = '<option>Première journée en préparation</option>';
