@@ -20,7 +20,7 @@
       <div class="titles">
         <span class="eyebrow">MOBILITÉS · TRAFIC AÉRIEN</span>
         <h1>Une journée dans le ciel du Val-d’Oise</h1>
-        <p>Bilan journalier, trajectoires et suivi en direct autour des aérodromes</p>
+        <p>Bilan journalier, trajectoires et situation aérienne récente autour des aérodromes</p>
       </div>
       <div class="data-state" id="dataState">
         <i></i><div><strong>Chargement des données</strong><small>Source ADSB.lol</small></div>
@@ -42,7 +42,7 @@
         <section class="side-intro">
           <div class="view-switch" role="group" aria-label="Type d’observation">
             <button id="dailyView" class="active" type="button">Bilan journalier</button>
-            <button id="liveView" type="button"><i></i>Temps réel</button>
+            <button id="liveView" type="button"><i></i>Situation récente</button>
           </div>
           <div id="dailyIntro">
             <span class="eyebrow">JOURNÉE OBSERVÉE</span>
@@ -127,8 +127,8 @@
     <p>Bleu : décollage. Rouge : atterrissage. En lecture horaire, le nez de chaque avion est orienté selon le cap ADS-B transmis. La densité représente le nombre de positions observées dans une maille, pas un niveau sonore.</p>
     <h3>Provenance et destination</h3>
     <p>Lorsqu’un indicatif de vol est disponible, la provenance et la destination sont recherchées dans la base ouverte ADSBDB. Il s’agit d’un itinéraire indicatif associé à l’indicatif, et non du plan de vol officiel déposé pour ce vol.</p>
-    <h3>Temps réel</h3>
-    <p>Le mode direct interroge le flux ADSB.lol autour du Val-d’Oise. Il retient les appareils à basse ou moyenne altitude dont le profil vertical et la proximité d’un aérodrome indiquent un mouvement probable. Cette qualification en direct reste indicative.</p>
+    <h3>Situation aérienne récente</h3>
+    <p>Ce mode exploite un instantané ADSB.lol relayé automatiquement par GitHub environ toutes les cinq minutes. Il retient les appareils à basse ou moyenne altitude dont le profil vertical et la proximité d’un aérodrome indiquent un mouvement probable. Ce n’est ni un radar de contrôle aérien, ni une qualification officielle.</p>
     <h3>Plan d’exposition au bruit</h3>
     <p>Le PEB de Paris-Charles-de-Gaulle est un document d’urbanisme réglementaire approuvé le 3 avril 2007. Les zones A à D représentent une exposition décroissante. Leur superposition avec une journée observée permet de comparer le zonage de long terme aux trajectoires réellement détectées, sans transformer une seule journée en mesure acoustique.</p>
     <h3>Limites</h3>
@@ -137,6 +137,6 @@
   </dialog>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="js/app.js?v=5"></script>
+  <script src="js/app.js?v=6"></script>
 </body>
 </html>
