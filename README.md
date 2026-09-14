@@ -8,6 +8,7 @@ Carte interactive DDT 95 des décollages et atterrissages ADS-B observés pendan
 - Seules les trajectoires qui croisent une commune du Val-d’Oise et sont associées à un décollage ou un atterrissage sur un aérodrome du département sont conservées.
 - La carte s’ouvre sur un créneau de 30 minutes pour rester lisible ; le cumul journalier reste disponible.
 - Les avions sont orientés selon le cap ADS-B, avec les décollages en bleu et les atterrissages en rouge.
+- Au clic, l’itinéraire indicatif associé à l’indicatif de vol est recherché dans ADSBDB : provenance, destination et compagnie.
 - Les fichiers web quotidiens sont compressés et les 14 derniers jours restent disponibles.
 - Le traitement est lancé chaque matin après la publication de l’archive de la veille.
 

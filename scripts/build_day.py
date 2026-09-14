@@ -200,8 +200,9 @@ def parse_aircraft(raw: bytes, polygons, day_start: float):
 
     tracks = []
     for sequence in chunks:
-        inside = [p for p in sequence if in_department(p[2], p[1], polygons)]
-        if len(inside) < 2:
+        # The airport is the selection criterion. Requiring the track to cross
+        # the department removed most eastbound arrivals at CDG.
+        if len(sequence) < 2:
             continue
         # Keep one point every 20 s, while preserving ends, for a light web payload.
         kept, last = [], -10_000
@@ -210,8 +211,8 @@ def parse_aircraft(raw: bytes, polygons, day_start: float):
                 kept.append(p); last = p[0]
         if kept[-1] != sequence[-1]:
             kept.append(sequence[-1])
-        altitudes = [p[3] for p in inside if p[3] is not None]
-        speeds = [p[4] for p in inside if p[4] is not None]
+        altitudes = [p[3] for p in sequence if p[3] is not None]
+        speeds = [p[4] for p in sequence if p[4] is not None]
         if not altitudes:
             continue
         movement = classify_movement(kept)
@@ -224,7 +225,7 @@ def parse_aircraft(raw: bytes, polygons, day_start: float):
             "type": payload.get("t"),
             "desc": payload.get("desc"),
             "operator": payload.get("ownOp"),
-            "first": inside[0][0], "last": inside[-1][0],
+            "first": sequence[0][0], "last": sequence[-1][0],
             "min_alt": round(min(altitudes)), "max_alt": round(max(altitudes)),
             "max_speed": round(max(speeds), 1) if speeds else None,
             "movement": movement[0], "airport": movement[1],

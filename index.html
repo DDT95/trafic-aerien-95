@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="preconnect" href="https://tile.openstreetmap.org" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-  <link rel="stylesheet" href="css/style.css?v=2" />
+  <link rel="stylesheet" href="css/style.css?v=3" />
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
 </head>
 <body>
@@ -90,6 +90,7 @@
     <h2 id="flightTitle">Aéronef</h2>
     <p id="flightSubtitle"></p>
     <div id="flightFacts" class="flight-facts"></div>
+    <p id="routeNote" class="route-note"></p>
   </aside>
 
   <dialog id="methodDialog">
@@ -99,12 +100,14 @@
     <p>Les trajectoires proviennent des positions ADS-B historiques publiées quotidiennement par ADSB.lol sous licence ODbL. La carte ne conserve que les séquences qui traversent le Val-d’Oise et dont l’extrémité basse correspond à un décollage ou à un atterrissage sur un aérodrome du département.</p>
     <h3>Lecture et sens de vol</h3>
     <p>Bleu : décollage. Rouge : atterrissage. En lecture horaire, le nez de chaque avion est orienté selon le cap ADS-B transmis. La densité représente le nombre de positions observées dans une maille, pas un niveau sonore.</p>
+    <h3>Provenance et destination</h3>
+    <p>Lorsqu’un indicatif de vol est disponible, la provenance et la destination sont recherchées dans la base ouverte ADSBDB. Il s’agit d’un itinéraire indicatif associé à l’indicatif, et non du plan de vol officiel déposé pour ce vol.</p>
     <h3>Limites</h3>
     <p>Le type de mouvement est déduit de la proximité de l’aérodrome, de l’altitude et du profil de la trajectoire : ce n’est pas un registre officiel des mouvements. La réception ADS-B n’est pas exhaustive. Cette carte ne mesure ni le bruit, ni une exposition acoustique réglementaire.</p>
-    <p class="source-note">Source : ADSB.lol · Limites administratives : DDT 95 · Fond : OpenStreetMap</p>
+    <p class="source-note">Sources : ADSB.lol et ADSBDB · Limites administratives : DDT 95 · Fond : OpenStreetMap</p>
   </dialog>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="js/app.js?v=2"></script>
+  <script src="js/app.js?v=3"></script>
 </body>
 </html>

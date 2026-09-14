@@ -30,6 +30,8 @@
   let playing = false;
   let timer = null;
   let renderTimer = null;
+  let routeRequest = 0;
+  const routeCache = new Map();
 
   const altitudeText = (ft) => Number.isFinite(ft) ? `${fmt.format(Math.round(ft))} ft · ${fmt.format(Math.round(ft * .3048))} m` : 'Non transmise';
   const timeText = (seconds) => {
@@ -239,7 +241,46 @@
     });
   }
 
+  function renderFlightFacts(facts) {
+    $('flightFacts').innerHTML = facts.map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('');
+  }
+
+  function airportRouteText(value) {
+    if (!value) return 'Non disponible';
+    const code = value.iata_code || value.icao_code;
+    return [code, value.municipality, value.name].filter(Boolean).join(' · ');
+  }
+
+  async function loadFlightRoute(t, facts, requestId) {
+    const callsign = String(t.flight || '').trim().replace(/[^A-Z0-9]/gi, '').toUpperCase();
+    if (callsign.length < 3) {
+      $('routeNote').textContent = 'Provenance et destination indisponibles : aucun indicatif de vol exploitable.';
+      return;
+    }
+    $('routeNote').textContent = 'Recherche de la provenance et de la destination…';
+    try {
+      let route = routeCache.get(callsign);
+      if (!route) {
+        const response = await fetch(`https://api.adsbdb.com/v0/callsign/${encodeURIComponent(callsign)}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        route = (await response.json())?.response?.flightroute;
+        if (!route) throw new Error('Route absente');
+        routeCache.set(callsign, route);
+      }
+      if (requestId !== routeRequest) return;
+      renderFlightFacts([
+        ['Provenance prévue', airportRouteText(route.origin)], ['Destination prévue', airportRouteText(route.destination)],
+        ['Compagnie', route.airline?.name || t.operator || 'Non disponible'], ...facts
+      ]);
+      $('flightSubtitle').textContent = `${movementText(t.movement)} · ${route.airline?.name || airportById(t.airport)?.name || t.airport}`;
+      $('routeNote').textContent = 'Itinéraire indicatif associé à l’indicatif de vol · Source ADSBDB.';
+    } catch (error) {
+      if (requestId === routeRequest) $('routeNote').textContent = 'Provenance et destination non trouvées pour cet indicatif.';
+    }
+  }
+
   function openFlight(t) {
+    const requestId = ++routeRequest;
     const airport = airportById(t.airport);
     $('flightTitle').textContent = t.flight || t.reg || t.hex.toUpperCase();
     $('flightSubtitle').textContent = `${movementText(t.movement)} · ${airport?.name || t.airport}`;
@@ -250,8 +291,9 @@
       ['Altitude minimale', altitudeText(t.min_alt)], ['Altitude maximale', altitudeText(t.max_alt)],
       ['Vitesse maximale', Number.isFinite(t.max_speed) ? `${fmt.format(Math.round(t.max_speed))} kt` : 'Non transmise'], ['Positions retenues', fmt.format(t.points.length)]
     ];
-    $('flightFacts').innerHTML = facts.map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('');
+    renderFlightFacts(facts);
     $('flightPanel').classList.add('open'); $('flightPanel').setAttribute('aria-hidden', 'false');
+    loadFlightRoute(t, facts, requestId);
   }
 
   function updateLegend() {
