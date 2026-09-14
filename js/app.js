@@ -18,11 +18,18 @@
   const bounds95 = L.latLngBounds([48.86, 1.60], [49.25, 2.60]);
   const canvas = L.canvas({ padding: .5 });
   const territoryLayer = L.geoJSON(null, { style: { color: '#070047', weight: 2.6, fillColor: '#000091', fillOpacity: .045, interactive: false } }).addTo(map);
+  map.createPane('pebPane');
+  map.getPane('pebPane').style.zIndex = 350;
+  map.getPane('pebPane').style.pointerEvents = 'none';
+  const pebColors = { A: '#c9191e', B: '#e8590c', C: '#d6a700', D: '#6666c7' };
+  const pebLayer = L.geoJSON(null, { pane: 'pebPane', interactive: false, style: f => ({ color: pebColors[f.properties.ZONE], fillColor: pebColors[f.properties.ZONE], weight: 1.8, opacity: .9, fillOpacity: f.properties.ZONE === 'D' ? .10 : .18 }) });
   const airportLayer = L.layerGroup().addTo(map);
   const haloLayer = L.layerGroup().addTo(map);
   const trackLayer = L.layerGroup().addTo(map);
   const markerLayer = L.layerGroup().addTo(map);
   const densityLayer = L.layerGroup().addTo(map);
+  const liveTrailLayer = L.layerGroup();
+  const liveMarkerLayer = L.layerGroup();
 
   let index = null;
   let day = null;
@@ -30,6 +37,10 @@
   let playing = false;
   let timer = null;
   let renderTimer = null;
+  let viewKind = 'daily';
+  let liveTimer = null;
+  let movingLive = [];
+  const liveHistory = new Map();
   let routeRequest = 0;
   const routeCache = new Map();
 
@@ -39,7 +50,7 @@
     return `${String(Math.floor(total / 3600)).padStart(2, '0')}:${String(Math.floor((total % 3600) / 60)).padStart(2, '0')}`;
   };
   const esc = (v) => String(v ?? '').replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
-  const movementText = (m) => m === 'arrival' ? 'Atterrissage' : 'Décollage';
+  const movementText = (m) => m === 'arrival' ? 'Atterrissage' : m === 'departure' ? 'Décollage' : 'Mouvement à confirmer';
   const airportById = (id) => AIRPORTS.find(a => a.id === id);
 
   function distanceKm(a, b) {
@@ -97,6 +108,11 @@
     territoryLayer.addData(g);
     map.fitBounds(territoryLayer.getBounds(), { padding: [22, 22] });
   }).catch(() => map.fitBounds(bounds95));
+
+  fetch('data/peb-cdg.geojson').then(r => r.json()).then(g => pebLayer.addData(g)).catch(() => {
+    $('pebToggle').disabled = true;
+    document.querySelector('.layer-switch small').textContent = 'Couche momentanément indisponible';
+  });
 
   AIRPORTS.forEach(airport => {
     const icon = L.divIcon({ className: '', html: `<div class="airport-marker">${airport.id}</div>`, iconSize: [29, 29], iconAnchor: [15, 15] });
@@ -176,6 +192,11 @@
 
   function updateKpis() {
     const s = day.stats;
+    $('kpiPassagesLabel').textContent = 'mouvements retenus';
+    $('kpiAircraftLabel').textContent = 'décollages observés';
+    $('kpiLowLabel').textContent = 'atterrissages observés';
+    $('kpiPeakLabel').textContent = 'heure la plus chargée';
+    $('kpiPointsLabel').textContent = 'aéronefs distincts';
     $('kpiPassages').textContent = fmt.format(s.movements);
     $('kpiAircraft').textContent = fmt.format(s.departures);
     $('kpiLow').textContent = fmt.format(s.arrivals);
@@ -189,15 +210,16 @@
     const cumulative = $('cumulative').checked;
     const movements = new Set([...document.querySelectorAll('.movement-filters input:checked')].map(i => i.value));
     const airport = $('airportSelect').value;
-    return day.tracks.filter(t => movements.has(t.movement) && (airport === 'all' || t.airport === airport) && (cumulative ? t.first <= maxSec : (t.first <= maxSec + 900 && t.last >= maxSec - 900)));
+    const windowSec = Number($('windowSelect').value) * 60;
+    return day.tracks.filter(t => movements.has(t.movement) && (airport === 'all' || t.airport === airport) && (cumulative ? t.first <= maxSec : (t.first <= maxSec + windowSec && t.last >= maxSec - windowSec)));
   }
 
   function render() {
-    if (!day) return;
+    if (!day || viewKind !== 'daily') return;
     haloLayer.clearLayers(); trackLayer.clearLayers(); markerLayer.clearLayers(); densityLayer.clearLayers();
     const tracks = visibleTracks(); const maxSec = Number($('time').value) * 60; const cumulative = $('cumulative').checked;
     if (mode === 'density') renderDensity(tracks, maxSec, cumulative); else renderTracks(tracks, maxSec, cumulative);
-    $('mapStatus').textContent = `${fmt.format(tracks.length)} mouvements visibles · ${timeText(maxSec)}${cumulative ? ' · cumul' : ' · créneau ± 15 min'}`;
+    $('mapStatus').textContent = `${fmt.format(tracks.length)} mouvements visibles · ${timeText(maxSec)}${cumulative ? ' · bilan cumulé' : ` · fenêtre ${Number($('windowSelect').value) * 2} min`}`;
     updateLegend();
   }
 
@@ -215,7 +237,8 @@
 
   function renderTracks(tracks, maxSec, cumulative) {
     tracks.forEach(t => {
-      let points = cumulative ? t.points.filter(p => p[0] <= maxSec) : t.points.filter(p => Math.abs(p[0] - maxSec) <= 900);
+      const windowSec = Number($('windowSelect').value) * 60;
+      let points = cumulative ? t.points.filter(p => p[0] <= maxSec) : t.points.filter(p => Math.abs(p[0] - maxSec) <= windowSec);
       if (points.length < 2) return;
       const latlngs = points.map(p => [p[1], p[2]]); const color = MOVEMENT_COLOR[t.movement];
       L.polyline(latlngs, { renderer: canvas, color: '#fff', weight: 6, opacity: .78, interactive: false }).addTo(haloLayer);
@@ -232,8 +255,9 @@
 
   function renderDensity(tracks, maxSec, cumulative) {
     const cells = new Map();
+    const windowSec = Number($('windowSelect').value) * 60;
     tracks.forEach(t => t.points.forEach(p => {
-      if (p[0] > maxSec || (!cumulative && Math.abs(p[0] - maxSec) > 900)) return;
+      if (p[0] > maxSec || (!cumulative && Math.abs(p[0] - maxSec) > windowSec)) return;
       const y = Math.round(p[1] / .018) * .018; const x = Math.round(p[2] / .028) * .028; const key = `${y.toFixed(3)}|${x.toFixed(3)}`;
       const cell = cells.get(key) || { lat: y, lon: x, count: 0 }; cell.count += 1; cells.set(key, cell);
     }));
@@ -300,9 +324,11 @@
   }
 
   function updateLegend() {
-    $('legend').innerHTML = mode === 'density'
+    const base = mode === 'density' && viewKind === 'daily'
       ? '<strong>Densité des positions</strong><span><i style="background:#4ba7aa"></i>Faible</span><span><i style="background:#ffd66b"></i>Intermédiaire</span><span><i style="background:#e1000f"></i>Forte</span>'
       : '<strong>Sens du mouvement</strong><span><i style="background:#0063cb;height:4px"></i>Décollage</span><span><i style="background:#e1000f;height:4px"></i>Atterrissage</span><span>Le nez de l’avion indique sa direction</span>';
+    const peb = $('pebToggle').checked ? '<strong style="margin-top:10px">PEB Paris-CDG</strong><span><i style="background:#c9191e;height:7px"></i>Zone A · très forte</span><span><i style="background:#e8590c;height:7px"></i>Zone B · forte</span><span><i style="background:#d6a700;height:7px"></i>Zone C · modérée</span><span><i style="background:#6666c7;height:7px"></i>Zone D · faible</span>' : '';
+    $('legend').innerHTML = base + peb;
   }
 
   function syncClock() { $('clock').textContent = timeText(Number($('time').value) * 60); }
@@ -311,11 +337,121 @@
   function togglePlay() {
     if (playing) return stop();
     if (Number($('time').value) >= 1440) $('time').value = 0;
-    $('cumulative').checked = false; playing = true; $('play').textContent = '❚❚';
+    $('cumulative').checked = false;
+    $('animatedView').classList.add('active'); $('wholeDay').classList.remove('active');
+    playing = true; $('play').textContent = '❚❚';
     timer = setInterval(() => {
-      const next = Number($('time').value) + 5; if (next > 1440) return stop();
+      const next = Number($('time').value) + 1; if (next > 1440) return stop();
       $('time').value = next; syncClock(); render();
-    }, 180);
+    }, Number($('speedSelect').value));
+  }
+
+  function setDailyDisplay(fullDay) {
+    stop();
+    $('cumulative').checked = fullDay;
+    $('animatedView').classList.toggle('active', !fullDay);
+    $('wholeDay').classList.toggle('active', fullDay);
+    if (fullDay) $('time').value = 1440;
+    else if (Number($('time').value) >= 1440) $('time').value = day.stats.peak_hour * 60 + 30;
+    syncClock(); render();
+  }
+
+  function projectedLive(item, now) {
+    const elapsed = Math.min((now - item.seenAt) / 1000, 40);
+    const speedKmh = Number(item.data.gs) * 1.852; const heading = Number(item.data.track);
+    if (!Number.isFinite(speedKmh) || !Number.isFinite(heading) || speedKmh < 15 || elapsed <= 0) return [item.data.lat, item.data.lon];
+    const angular = ((speedKmh * elapsed) / 3600) / 6371.0088; const bearing = heading * Math.PI / 180;
+    const lat1 = item.data.lat * Math.PI / 180; const lon1 = item.data.lon * Math.PI / 180;
+    const lat2 = Math.asin(Math.sin(lat1) * Math.cos(angular) + Math.cos(lat1) * Math.sin(angular) * Math.cos(bearing));
+    const lon2 = lon1 + Math.atan2(Math.sin(bearing) * Math.sin(angular) * Math.cos(lat1), Math.cos(angular) - Math.sin(lat1) * Math.sin(lat2));
+    return [lat2 * 180 / Math.PI, lon2 * 180 / Math.PI];
+  }
+
+  function animateLive(now) {
+    if (viewKind === 'live' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      movingLive.forEach(item => item.marker.setLatLng(projectedLive(item, now)));
+    }
+    requestAnimationFrame(animateLive);
+  }
+
+  function classifyLive(p) {
+    if (!Number.isFinite(p.lat) || !Number.isFinite(p.lon)) return null;
+    if (!(48.65 <= p.lat && p.lat <= 49.45 && 1.25 <= p.lon && p.lon <= 2.80)) return null;
+    const alt = p.alt_baro === 'ground' ? 0 : Number(p.alt_baro);
+    if (!Number.isFinite(alt) || alt > 18000) return null;
+    const nearest = nearestAirport([0, p.lat, p.lon]);
+    if (nearest.distance > 35) return null;
+    const rate = Number(p.baro_rate ?? p.geom_rate);
+    let movement = rate < -180 ? 'arrival' : rate > 180 ? 'departure' : 'unknown';
+    if (movement === 'unknown' && alt > 8000) return null;
+    return { data: p, movement, airport: nearest.airport, alt, rate };
+  }
+
+  function openLiveFlight(item) {
+    const p = item.data; const requestId = ++routeRequest;
+    $('flightTitle').textContent = (p.flight || p.r || p.hex || 'Aéronef').trim();
+    $('flightSubtitle').textContent = `${movementText(item.movement)} · position en direct`;
+    const facts = [
+      ['Tendance', movementText(item.movement)], ['Aérodrome proche', item.airport.name],
+      ['Immatriculation', p.r || 'Non transmise'], ['Type', p.t || 'Non transmis'],
+      ['Altitude', altitudeText(item.alt)], ['Vitesse sol', Number.isFinite(Number(p.gs)) ? `${fmt.format(Math.round(Number(p.gs) * 1.852))} km/h` : 'Non transmise'],
+      ['Variation verticale', Number.isFinite(item.rate) ? `${item.rate > 0 ? '+' : ''}${fmt.format(Math.round(item.rate))} ft/min` : 'Non transmise'], ['Cap', Number.isFinite(Number(p.track)) ? `${Math.round(Number(p.track))}°` : 'Non transmis']
+    ];
+    renderFlightFacts(facts); $('flightPanel').classList.add('open'); $('flightPanel').setAttribute('aria-hidden', 'false');
+    loadFlightRoute({ flight: p.flight, operator: null, airport: item.airport.id, movement: item.movement }, facts, requestId);
+  }
+
+  async function loadLive() {
+    if (viewKind !== 'live') return;
+    $('mapStatus').textContent = 'Actualisation du trafic en direct…';
+    try {
+      const response = await fetch('https://api.adsb.lol/v2/lat/49.08/lon/2.10/dist/45');
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json(); const now = Date.now();
+      if (viewKind !== 'live') return;
+      const items = (payload.ac || []).map(classifyLive).filter(Boolean);
+      liveTrailLayer.clearLayers(); liveMarkerLayer.clearLayers(); movingLive = [];
+      items.forEach(item => {
+        const p = item.data; const history = liveHistory.get(p.hex) || [];
+        history.push({ time: now, lat: p.lat, lon: p.lon });
+        const recent = history.filter(x => now - x.time < 30 * 60 * 1000).slice(-60); liveHistory.set(p.hex, recent);
+        const color = MOVEMENT_COLOR[item.movement] || '#5b6474';
+        if (recent.length > 1) L.polyline(recent.map(x => [x.lat, x.lon]), { renderer: canvas, color, weight: 2.4, opacity: .68, className: 'live-trail' }).addTo(liveTrailLayer);
+        const icon = L.divIcon({ className: '', html: `<div class="plane-marker live-plane live-pulse ${item.movement}" style="transform:rotate(${Number(p.track) || 0}deg)">${planeSvg()}</div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
+        const marker = L.marker([p.lat, p.lon], { icon, zIndexOffset: 600 }).bindTooltip(`${esc((p.flight || p.r || p.hex).trim())} · ${movementText(item.movement)} · ${altitudeText(item.alt)}`).on('click', () => openLiveFlight(item)).addTo(liveMarkerLayer);
+        movingLive.push({ data: p, marker, seenAt: performance.now() });
+      });
+      const arrivals = items.filter(x => x.movement === 'arrival').length; const departures = items.filter(x => x.movement === 'departure').length;
+      const stamp = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      $('kpiPassages').textContent = fmt.format(items.length); $('kpiPassagesLabel').textContent = 'mouvements probables en direct';
+      $('kpiAircraft').textContent = fmt.format(departures); $('kpiAircraftLabel').textContent = 'appareils en montée';
+      $('kpiLow').textContent = fmt.format(arrivals); $('kpiLowLabel').textContent = 'appareils en descente';
+      $('kpiPeak').textContent = stamp.slice(0, 5); $('kpiPeakLabel').textContent = 'dernière actualisation';
+      $('kpiPoints').textContent = fmt.format(items.filter(x => x.movement === 'unknown').length); $('kpiPointsLabel').textContent = 'mouvements à confirmer';
+      $('liveSummary').textContent = `${items.length} appareils à basse ou moyenne altitude près des aérodromes · actualisation toutes les 30 secondes.`;
+      $('mapStatus').textContent = `${items.length} mouvements probables · direct ${stamp}`;
+      setState('Temps réel actif', `Actualisé à ${stamp}`, 'ready'); updateLegend();
+    } catch (error) {
+      $('liveSummary').textContent = 'Le flux direct est momentanément indisponible. Le bilan journalier reste accessible.';
+      $('mapStatus').textContent = 'Flux direct indisponible'; setState('Temps réel indisponible', 'Nouvel essai automatique', 'error');
+    }
+  }
+
+  function setViewKind(next) {
+    if (next === viewKind) return;
+    viewKind = next; document.body.classList.toggle('live-mode', next === 'live');
+    $('dailyView').classList.toggle('active', next === 'daily'); $('liveView').classList.toggle('active', next === 'live');
+    $('dailyIntro').hidden = next !== 'daily'; $('liveIntro').hidden = next !== 'live';
+    const dailyLayers = [haloLayer, trackLayer, markerLayer, densityLayer]; const liveLayers = [liveTrailLayer, liveMarkerLayer];
+    if (next === 'live') {
+      stop(); dailyLayers.forEach(layer => map.removeLayer(layer)); liveLayers.forEach(layer => layer.addTo(map));
+      loadLive(); clearInterval(liveTimer); liveTimer = setInterval(loadLive, 30000);
+    } else {
+      clearInterval(liveTimer); liveLayers.forEach(layer => map.removeLayer(layer)); dailyLayers.forEach(layer => layer.addTo(map));
+      if (day) {
+        updateKpis(); setState('Mouvements filtrés', `Journée du ${new Date(`${day.date}T12:00:00`).toLocaleDateString('fr-FR')}`, 'ready'); render();
+      }
+    }
   }
 
   document.querySelectorAll('.mode').forEach(button => button.addEventListener('click', () => {
@@ -323,8 +459,19 @@
   }));
   document.querySelectorAll('.movement-filters input').forEach(input => input.addEventListener('change', render));
   $('airportSelect').addEventListener('change', render);
-  $('time').addEventListener('input', () => { syncClock(); scheduleRender(); });
-  $('cumulative').addEventListener('change', render);
+  $('time').addEventListener('input', () => { $('animatedView').classList.add('active'); $('wholeDay').classList.remove('active'); syncClock(); scheduleRender(); });
+  $('cumulative').addEventListener('change', () => { $('wholeDay').classList.toggle('active', $('cumulative').checked); $('animatedView').classList.toggle('active', !$('cumulative').checked); render(); });
+  $('windowSelect').addEventListener('change', render);
+  $('speedSelect').addEventListener('change', () => { if (playing) { stop(); togglePlay(); } });
+  $('wholeDay').addEventListener('click', () => setDailyDisplay(true));
+  $('animatedView').addEventListener('click', () => setDailyDisplay(false));
+  document.querySelectorAll('.hour-presets button').forEach(button => button.addEventListener('click', () => { setDailyDisplay(false); $('time').value = button.dataset.minute; syncClock(); render(); }));
+  $('dailyView').addEventListener('click', () => setViewKind('daily'));
+  $('liveView').addEventListener('click', () => setViewKind('live'));
+  $('pebToggle').addEventListener('change', () => {
+    if ($('pebToggle').checked) pebLayer.addTo(map); else map.removeLayer(pebLayer);
+    $('pebKey').hidden = !$('pebToggle').checked; updateLegend();
+  });
   $('play').addEventListener('click', togglePlay);
   $('resetMap').addEventListener('click', () => territoryLayer.getBounds().isValid() ? map.fitBounds(territoryLayer.getBounds(), { padding: [22, 22] }) : map.fitBounds(bounds95));
   $('closeFlight').addEventListener('click', () => { $('flightPanel').classList.remove('open'); $('flightPanel').setAttribute('aria-hidden', 'true'); });
@@ -332,5 +479,6 @@
   $('closeMethod').addEventListener('click', () => $('methodDialog').close());
   $('mobileData').addEventListener('click', () => $('sidebar').classList.toggle('open'));
   $('sheetHandle').addEventListener('click', () => $('sidebar').classList.toggle('open'));
+  requestAnimationFrame(animateLive);
   updateLegend(); loadIndex();
 })();

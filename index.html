@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="preconnect" href="https://tile.openstreetmap.org" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-  <link rel="stylesheet" href="css/style.css?v=3" />
+  <link rel="stylesheet" href="css/style.css?v=5" />
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
 </head>
 <body>
@@ -20,7 +20,7 @@
       <div class="titles">
         <span class="eyebrow">MOBILITÉS · TRAFIC AÉRIEN</span>
         <h1>Une journée dans le ciel du Val-d’Oise</h1>
-        <p>Décollages et atterrissages observés depuis les aérodromes du département</p>
+        <p>Bilan journalier, trajectoires et suivi en direct autour des aérodromes</p>
       </div>
       <div class="data-state" id="dataState">
         <i></i><div><strong>Chargement des données</strong><small>Source ADSB.lol</small></div>
@@ -29,33 +29,52 @@
     </header>
 
     <section class="kpis" aria-label="Indicateurs de la journée">
-      <article><b id="kpiPassages">—</b><span>mouvements retenus</span></article>
-      <article><b id="kpiAircraft">—</b><span>décollages observés</span></article>
-      <article><b id="kpiLow">—</b><span>atterrissages observés</span></article>
-      <article><b id="kpiPeak">—</b><span>heure la plus chargée</span></article>
-      <article><b id="kpiPoints">—</b><span>aéronefs distincts</span></article>
+      <article><b id="kpiPassages">—</b><span id="kpiPassagesLabel">mouvements retenus</span></article>
+      <article><b id="kpiAircraft">—</b><span id="kpiAircraftLabel">décollages observés</span></article>
+      <article><b id="kpiLow">—</b><span id="kpiLowLabel">atterrissages observés</span></article>
+      <article><b id="kpiPeak">—</b><span id="kpiPeakLabel">heure la plus chargée</span></article>
+      <article><b id="kpiPoints">—</b><span id="kpiPointsLabel">aéronefs distincts</span></article>
     </section>
 
     <main class="workspace">
       <aside class="sidebar" id="sidebar">
         <div class="sheet-handle" id="sheetHandle"><span></span><b>Explorer la journée</b></div>
         <section class="side-intro">
-          <span class="eyebrow">JOURNÉE OBSERVÉE</span>
-          <select id="daySelect" aria-label="Choisir une journée"></select>
-          <p id="daySummary">Sélectionnez une journée complète.</p>
+          <div class="view-switch" role="group" aria-label="Type d’observation">
+            <button id="dailyView" class="active" type="button">Bilan journalier</button>
+            <button id="liveView" type="button"><i></i>Temps réel</button>
+          </div>
+          <div id="dailyIntro">
+            <span class="eyebrow">JOURNÉE OBSERVÉE</span>
+            <select id="daySelect" aria-label="Choisir une journée"></select>
+            <p id="daySummary">Sélectionnez une journée complète.</p>
+          </div>
+          <div id="liveIntro" hidden>
+            <span class="eyebrow">SITUATION ACTUELLE</span>
+            <p id="liveSummary">Connexion au flux ADS-B…</p>
+          </div>
         </section>
 
-        <section class="control-block">
+        <section class="control-block" id="timelineBlock">
           <div class="block-title"><span>CHRONOLOGIE</span><b id="clock">00:00</b></div>
           <div class="time-card">
             <button id="play" type="button" aria-label="Lire la journée">▶</button>
-            <input id="time" type="range" min="0" max="1440" step="5" value="1440" aria-label="Heure de la journée" />
+            <input id="time" type="range" min="0" max="1440" step="1" value="1440" aria-label="Heure de la journée" />
           </div>
           <div class="ticks"><span>00 h</span><span>06 h</span><span>12 h</span><span>18 h</span><span>24 h</span></div>
-          <label class="check"><input id="cumulative" type="checkbox" /><span>Afficher le cumul depuis minuit</span></label>
+          <div class="timeline-actions">
+            <button id="animatedView" class="active" type="button">Créneau animé</button>
+            <button id="wholeDay" type="button">Bilan de la journée</button>
+          </div>
+          <div class="play-options">
+            <label><span>Vitesse</span><select id="speedSelect"><option value="650">Lente</option><option value="350" selected>Normale</option><option value="180">Rapide</option></select></label>
+            <label><span>Fenêtre</span><select id="windowSelect"><option value="10">20 minutes</option><option value="15" selected>30 minutes</option><option value="30">1 heure</option><option value="60">2 heures</option></select></label>
+          </div>
+          <div class="hour-presets"><button type="button" data-minute="360">06 h</button><button type="button" data-minute="720">12 h</button><button type="button" data-minute="1080">18 h</button><button type="button" data-minute="1320">22 h</button></div>
+          <label class="check cumulative-check"><input id="cumulative" type="checkbox" /><span>Afficher le cumul depuis minuit</span></label>
         </section>
 
-        <section class="control-block">
+        <section class="control-block" id="representationBlock">
           <div class="block-title"><span>LECTURE CARTOGRAPHIQUE</span></div>
           <div class="modes" role="group" aria-label="Mode de représentation">
             <button class="mode active" data-mode="tracks" type="button"><i class="track-icon"></i><span><b>Trajectoires</b><small>Un passage, une ligne</small></span></button>
@@ -63,13 +82,19 @@
           </div>
         </section>
 
-        <section class="control-block">
+        <section class="control-block" id="movementBlock">
           <div class="block-title"><span>MOUVEMENTS AFFICHÉS</span></div>
           <div class="movement-filters">
             <label><input type="checkbox" value="departure" checked /><i class="departure-dot"></i><span>Décollages</span></label>
             <label><input type="checkbox" value="arrival" checked /><i class="arrival-dot"></i><span>Atterrissages</span></label>
           </div>
           <label class="airport-filter"><span>Aérodrome</span><select id="airportSelect"><option value="all">Tous les aérodromes</option></select></label>
+        </section>
+
+        <section class="control-block decision-block">
+          <div class="block-title"><span>ANALYSE TERRITORIALE</span></div>
+          <label class="layer-switch"><span><b>Plan d’exposition au bruit</b><small>PEB Paris-CDG · arrêté du 3 avril 2007</small></span><input id="pebToggle" type="checkbox" /><i></i></label>
+          <div class="peb-key" id="pebKey" hidden><span class="z-a">A</span><span class="z-b">B</span><span class="z-c">C</span><span class="z-d">D</span><small>Exposition très forte → faible</small></div>
         </section>
 
         <button class="method-link" id="openMethod" type="button">Sources, méthode et limites</button>
@@ -97,17 +122,21 @@
     <button class="dialog-close" id="closeMethod" type="button" aria-label="Fermer">×</button>
     <span class="eyebrow">COMPRENDRE LA DONNÉE</span>
     <h2>Ce que montre cette carte</h2>
-    <p>Les trajectoires proviennent des positions ADS-B historiques publiées quotidiennement par ADSB.lol sous licence ODbL. La carte ne conserve que les séquences qui traversent le Val-d’Oise et dont l’extrémité basse correspond à un décollage ou à un atterrissage sur un aérodrome du département.</p>
+    <p>Les trajectoires proviennent des positions ADS-B historiques publiées quotidiennement par ADSB.lol sous licence ODbL. La carte conserve les séquences dont l’extrémité basse correspond à un décollage ou à un atterrissage sur un aérodrome du département, même lorsque l’approche vient d’un département voisin.</p>
     <h3>Lecture et sens de vol</h3>
     <p>Bleu : décollage. Rouge : atterrissage. En lecture horaire, le nez de chaque avion est orienté selon le cap ADS-B transmis. La densité représente le nombre de positions observées dans une maille, pas un niveau sonore.</p>
     <h3>Provenance et destination</h3>
     <p>Lorsqu’un indicatif de vol est disponible, la provenance et la destination sont recherchées dans la base ouverte ADSBDB. Il s’agit d’un itinéraire indicatif associé à l’indicatif, et non du plan de vol officiel déposé pour ce vol.</p>
+    <h3>Temps réel</h3>
+    <p>Le mode direct interroge le flux ADSB.lol autour du Val-d’Oise. Il retient les appareils à basse ou moyenne altitude dont le profil vertical et la proximité d’un aérodrome indiquent un mouvement probable. Cette qualification en direct reste indicative.</p>
+    <h3>Plan d’exposition au bruit</h3>
+    <p>Le PEB de Paris-Charles-de-Gaulle est un document d’urbanisme réglementaire approuvé le 3 avril 2007. Les zones A à D représentent une exposition décroissante. Leur superposition avec une journée observée permet de comparer le zonage de long terme aux trajectoires réellement détectées, sans transformer une seule journée en mesure acoustique.</p>
     <h3>Limites</h3>
     <p>Le type de mouvement est déduit de la proximité de l’aérodrome, de l’altitude et du profil de la trajectoire : ce n’est pas un registre officiel des mouvements. La réception ADS-B n’est pas exhaustive. Cette carte ne mesure ni le bruit, ni une exposition acoustique réglementaire.</p>
-    <p class="source-note">Sources : ADSB.lol et ADSBDB · Limites administratives : DDT 95 · Fond : OpenStreetMap</p>
+    <p class="source-note">Sources : ADSB.lol, ADSBDB et zonage PEB DGAC · Limites administratives : DDT 95 · Fond : OpenStreetMap</p>
   </dialog>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="js/app.js?v=4"></script>
+  <script src="js/app.js?v=5"></script>
 </body>
 </html>
